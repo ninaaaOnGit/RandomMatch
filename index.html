@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Random Teams</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="app">
+
+  <header class="app-header">
+    <h1>🎲 Random Teams</h1>
+    <p class="subtitle">Faire &amp; zufällige Gruppeneinteilung fürs Teamevent</p>
+  </header>
+
+  <main>
+
+    <!-- Bereich 1: Upload -->
+    <section class="card" id="section-upload">
+      <h2><span class="step">1</span> Teilnehmerliste laden</h2>
+      <label class="file-drop" for="file-input">
+        <input type="file" id="file-input" accept=".xlsx,.xls" hidden>
+        <span id="file-drop-label">📄 Excel-Datei auswählen (.xlsx)</span>
+      </label>
+      <p id="file-status" class="hint"></p>
+      <button id="btn-create" class="btn btn-primary btn-lg" disabled>Gruppen erstellen</button>
+    </section>
+
+    <!-- Bereich 2: Reroll -->
+    <section class="card" id="section-reroll" hidden>
+      <h2><span class="step">2</span> Neu einteilen</h2>
+      <button id="btn-reroll" class="btn btn-secondary btn-lg">🔄 Neu würfeln</button>
+    </section>
+
+    <!-- Qualitätsanzeige -->
+    <section class="card" id="section-quality" hidden>
+      <h2>Qualität dieser Verteilung</h2>
+      <div class="quality-grid">
+        <div class="quality-item">
+          <span class="quality-label">Abteilungsmischung</span>
+          <span id="quality-dept" class="badge">-</span>
+        </div>
+        <div class="quality-item">
+          <span class="quality-label">FK-Verteilung</span>
+          <span id="quality-fk" class="badge">-</span>
+        </div>
+        <div class="quality-item">
+          <span class="quality-label">Gruppengrößen</span>
+          <span id="quality-size" class="badge">-</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Bereich 3: Ergebnis -->
+    <section class="card" id="section-result" hidden>
+      <h2>Gruppen</h2>
+      <div id="dept-legend" class="dept-legend"></div>
+      <div id="groups-container" class="groups-grid"></div>
+      <button id="btn-copy" class="btn btn-secondary btn-lg">📋 Ergebnis kopieren</button>
+      <p id="copy-status" class="hint"></p>
+    </section>
+
+    <p id="error-message" class="error" hidden></p>
+
+  </main>
+
+  <footer class="app-footer">
+    <p>Alle Daten bleiben lokal in deinem Browser. Kein Upload, kein Server.</p>
+  </footer>
+
+</div>
+
+<script src="xlsx.full.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
