@@ -1,6 +1,12 @@
+// Random Teams: rein clientseitige Gruppeneinteilung für Teamevents.
+// Liest eine Excel-Datei (Name, Abteilung) ein und verteilt die Teilnehmenden
+// zufällig, aber möglichst gut nach Abteilung und Führungskraft (FK) gemischt,
+// auf Gruppen mit 3-6 Personen. Kein Server, keine Datenübertragung.
 (function () {
   "use strict";
 
+  // Einziger globaler Zustand: die eingelesenen Teilnehmenden und das
+  // zuletzt gewürfelte Ergebnis (wird für "Neu würfeln" und "Kopieren" gebraucht).
   var state = {
     participants: null, // [{name, dept, isFK}]
     groups: null
@@ -26,6 +32,9 @@
     errorMessage: document.getElementById("error-message")
   };
 
+  // CSS-Klassennamen für die Abteilungsfarben (siehe style.css). Abteilungen
+  // werden der Reihe nach alphabetisch auf diese Farben gemappt; bei mehr als
+  // 6 Abteilungen wiederholen sich die Farben.
   var DEPT_COLORS = ["dept-a", "dept-b", "dept-c", "dept-d", "dept-e", "dept-f"];
   var deptColorMap = {};
 
@@ -38,7 +47,9 @@
     showError("");
   }
 
-  // ---------- File parsing ----------
+  // ---------- Datei-Import ----------
+  // Excel-Datei wird komplett im Browser gelesen und geparst (SheetJS/xlsx.js,
+  // lokal eingebunden statt per CDN, damit die App auch offline funktioniert).
 
   els.fileInput.addEventListener("change", function (e) {
     var file = e.target.files && e.target.files[0];
@@ -98,6 +109,9 @@
     return String(h).trim().toLowerCase();
   }
 
+  // Findet die Spalten "Name" und "Abteilung" tolerant gegenüber Groß-/
+  // Kleinschreibung und zusätzlichem Text im Spaltenkopf, erkennt FK-Markierungen
+  // im Namen (z.B. "Nina FK", "Nina (FK)") und entfernt sie aus dem Anzeigenamen.
   function parseParticipants(rows) {
     if (!rows.length) throw new Error("Die Datei enthält keine Zeilen.");
 
@@ -120,6 +134,7 @@
       var rawDept = String(row[deptKey] || "").trim();
       if (!rawName) return;
 
+      // "FK" als eigenständiges Wort oder in Klammern zählt als Führungskraft.
       var isFK = /\bFK\b/i.test(rawName) || /\(FK\)/i.test(rawName);
       var cleanName = rawName
         .replace(/\(\s*FK\s*\)/gi, "")
@@ -137,12 +152,16 @@
     return participants;
   }
 
-  // ---------- Group size calculation ----------
+  // ---------- Gruppengröße berechnen ----------
 
+  // Ermittelt, wie viele Gruppen welcher Größe (3-6 Personen, bevorzugt 4-5)
+  // für n Teilnehmende sinnvoll sind. kMin/kMax ergeben sich direkt aus den
+  // Größenlimits: bei k Gruppen ist die größte mögliche Gruppengröße n/kMin=6
+  // und die kleinste n/kMax=3, alles dazwischen bleibt automatisch gültig.
   function computeGroupSizes(n) {
     var kMin = Math.ceil(n / 6);
     var kMax = Math.floor(n / 3);
-    if (kMin > kMax) return null;
+    if (kMin > kMax) return null; // n zu klein (<3) für eine gültige Gruppe
 
     // Prefer the smallest number of groups whose sizes stay mostly within the
     // preferred 4-5 range, tolerating at most one group outside it (a single
@@ -161,8 +180,10 @@
     return fallback.sizes;
   }
 
-  // ---------- Randomization helpers ----------
+  // ---------- Zufalls-Hilfsfunktionen ----------
 
+  // Fisher-Yates-Shuffle; sorgt dafür, dass jedes "Neu würfeln" eine andere,
+  // aber weiterhin gültige Verteilung ergibt.
   function shuffle(arr) {
     var a = arr.slice();
     for (var i = a.length - 1; i > 0; i--) {
@@ -174,9 +195,13 @@
     return a;
   }
 
-  // Interleave a list round-robin across buckets formed by one or more
-  // categorical attributes (e.g. department, FK-status), each shuffled
-  // internally. All attributes are treated equally as mixing criteria.
+  // Mischt eine Liste, indem sie zunächst in Buckets nach einer oder mehreren
+  // Eigenschaften aufgeteilt wird (z.B. Abteilung, FK-Status), jeder Bucket
+  // intern zufällig sortiert wird und dann reihum je ein Element aus jedem
+  // Bucket entnommen wird. Ergebnis: eine Reihenfolge, in der aufeinander-
+  // folgende Personen möglichst oft aus unterschiedlichen Buckets stammen -
+  // das reicht in Kombination mit der Round-Robin-Verteilung auf Gruppen
+  // (siehe assignGroups) für eine gute Durchmischung aus.
   function interleaveByAttributes(list, keyFns) {
     var buckets = {};
     list.forEach(function (p) {
@@ -201,8 +226,14 @@
     return result;
   }
 
-  // ---------- Group assignment ----------
+  // ---------- Gruppenzuteilung ----------
 
+  // Verteilt die Teilnehmenden auf die berechneten Gruppengrößen. Abteilung
+  // und FK-Status werden gleichwertig als Mischkriterien behandelt: Personen
+  // werden nach Abteilung+FK-Kombination in Buckets sortiert, gemischt
+  // interleavt (siehe interleaveByAttributes) und dann reihum ("Round-Robin")
+  // auf die Gruppen verteilt. Das sorgt gleichzeitig für Durchmischung und
+  // Zufälligkeit, ohne die beiden Kriterien getrennt behandeln zu müssen.
   function assignGroups(participants) {
     var sizes = computeGroupSizes(participants.length);
     if (!sizes) throw new Error("Für " + participants.length + " Teilnehmende kann keine gültige Gruppengröße (3–6) gebildet werden.");
@@ -216,6 +247,8 @@
       function (p) { return p.isFK ? "FK" : "no-FK"; }
     ]);
 
+    // Zufällige Reihenfolge, in der die Gruppen befüllt werden (ändert sich
+    // bei jedem Durchlauf), damit nicht immer dieselbe Gruppe zuerst drankommt.
     var order = shuffle(Array.from({ length: groupCount }, function (_, i) { return i; }));
     var cursor = 0;
 
@@ -230,7 +263,7 @@
           return;
         }
       }
-      // Fallback: force into first group with space (should not normally happen)
+      // Fallback: in die erste Gruppe mit freiem Platz zwingen (sollte normalerweise nicht eintreten)
       for (var i = 0; i < groupCount; i++) {
         if (groups[i].length < capacities[i]) {
           groups[i].push(person);
@@ -244,7 +277,10 @@
     return groups;
   }
 
-  // ---------- Quality evaluation ----------
+  // ---------- Qualitätsbewertung ----------
+  // Die Bewertung ist rein informativ (siehe UI-Anzeige "Optimal"/"Sehr gut"/
+  // "Gut") und beeinflusst die Zuteilung selbst nicht - sie macht nur sichtbar,
+  // wie gut die aktuell gewürfelte Verteilung tatsächlich gemischt ist.
 
   function evaluateQuality(groups) {
     var allDepts = {};
@@ -263,7 +299,10 @@
     var globalRatio = {};
     deptKeys.forEach(function (d) { globalRatio[d] = allDepts[d] / totalPeople; });
 
-    // Department mixing: average absolute deviation of per-group dept ratio vs global ratio.
+    // Abteilungsmischung: mittlere absolute Abweichung des Abteilungsanteils
+    // je Gruppe vom globalen Anteil. Je kleiner die Abweichung, desto besser
+    // spiegelt jede Gruppe die Gesamtverteilung wider. Schwellenwerte sind
+    // heuristisch gewählt (siehe "muss nicht mathematisch perfekt sein").
     var deptRating;
     if (deptKeys.length < 2) {
       deptRating = "optimal";
@@ -286,7 +325,8 @@
       else deptRating = "gut";
     }
 
-    // FK distribution: spread between max and min FK count per group.
+    // FK-Verteilung: Spannweite zwischen der Gruppe mit den meisten und der
+    // mit den wenigsten FKs. 0 = jede Gruppe hat gleich viele FKs (optimal).
     var fkRating;
     if (totalFK === 0) {
       fkRating = "optimal";
@@ -310,8 +350,11 @@
     el.className = "badge " + ratingKey;
   }
 
-  // ---------- Rendering ----------
+  // ---------- Darstellung ----------
 
+  // Ordnet jeder Abteilung deterministisch (alphabetisch) eine Farbe zu, damit
+  // eine Abteilung über mehrere "Neu würfeln"-Durchläufe hinweg immer dieselbe
+  // Farbe behält.
   function buildDeptColorMap(groups) {
     var depts = {};
     groups.forEach(function (g) {
@@ -428,7 +471,7 @@
     runAssignment();
   });
 
-  // ---------- Copy to clipboard ----------
+  // ---------- In Zwischenablage kopieren ----------
 
   function buildCopyText(groups) {
     var lines = [];
@@ -457,6 +500,9 @@
     }
   });
 
+  // Fallback für Browser/Kontexte ohne (oder mit blockierter) Clipboard-API,
+  // z.B. ältere Safari-Versionen: Text in ein unsichtbares Textfeld schreiben,
+  // markieren und über das alte execCommand("copy") kopieren.
   function fallbackCopy(text, cb) {
     try {
       var ta = document.createElement("textarea");

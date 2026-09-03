@@ -16,6 +16,10 @@
   --error-bg: #fdeceb;
   --radius: 16px;
   --shadow: 0 2px 10px rgba(30, 30, 60, 0.06), 0 1px 3px rgba(30, 30, 60, 0.08);
+  /* Abteilungsfarben (dept-a..dept-f, siehe app.js DEPT_COLORS): jede Farbe
+     hat eine kräftige Variante (Text/Punkt) und eine transparente "-bg"-
+     Variante (Chip-Hintergrund) als 8-stelliger Hex-Wert mit Alpha-Kanal -
+     das funktioniert breit, auch auf älteren iOS-Safari-Versionen. */
   --dept-a: #4548c9;
   --dept-a-bg: #5b5fef1f;
   --dept-b: #c2540e;
@@ -30,6 +34,7 @@
   --dept-f-bg: #4c8bf51f;
 }
 
+/* Automatischer Dark Mode nach Systemeinstellung des Geräts (iPhone/Desktop). */
 @media (prefers-color-scheme: dark) {
   :root {
     --bg: #14151f;
