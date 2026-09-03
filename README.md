@@ -18,7 +18,7 @@ Rein clientseitige Web-App zur zufälligen, aber fairen Gruppeneinteilung bei Te
 
 | Name              | Abteilung   |
 |-------------------|-------------|
-| Nina Faulstich FK | Abteilung A |
+| Janine Doe FK     | Abteilung A |
 | Max Mustermann    | Abteilung B |
 | Sabine Müller FK  | Abteilung B |
 | Peter Schneider   | Abteilung A |
