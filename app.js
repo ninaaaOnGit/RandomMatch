@@ -17,6 +17,8 @@
     fileDropLabel: document.getElementById("file-drop-label"),
     fileDrop: document.querySelector(".file-drop"),
     fileStatus: document.getElementById("file-status"),
+    groupCountInput: document.getElementById("group-count-input"),
+    groupCountHint: document.getElementById("group-count-hint"),
     btnCreate: document.getElementById("btn-create"),
     sectionReroll: document.getElementById("section-reroll"),
     btnReroll: document.getElementById("btn-reroll"),
@@ -59,6 +61,7 @@
     els.sectionReroll.hidden = true;
     els.sectionQuality.hidden = true;
     els.sectionResult.hidden = true;
+    els.groupCountHint.textContent = "";
 
     if (!file) {
       els.fileDropLabel.textContent = "📄 Excel-Datei auswählen (.xlsx)";
@@ -92,6 +95,7 @@
 
         els.fileStatus.textContent =
           participants.length + " Teilnehmende geladen · " + fkCount + " FK · " + deptSummary;
+        els.groupCountHint.textContent = describeAutoGroupRange(participants.length);
         els.btnCreate.disabled = false;
       } catch (err) {
         console.error(err);
@@ -154,30 +158,59 @@
 
   // ---------- Gruppengröße berechnen ----------
 
-  // Ermittelt, wie viele Gruppen welcher Größe (3-6 Personen, bevorzugt 4-5)
-  // für n Teilnehmende sinnvoll sind. kMin/kMax ergeben sich direkt aus den
-  // Größenlimits: bei k Gruppen ist die größte mögliche Gruppengröße n/kMin=6
-  // und die kleinste n/kMax=3, alles dazwischen bleibt automatisch gültig.
-  function computeGroupSizes(n) {
+  // Teilt n Personen so gleichmäßig wie möglich auf k Gruppen auf: die ersten
+  // (n mod k) Gruppen bekommen eine Person mehr als die übrigen.
+  function evenSplit(n, k) {
+    var base = Math.floor(n / k);
+    var rem = n % k;
+    var sizes = [];
+    for (var i = 0; i < k; i++) sizes.push(base + (i < rem ? 1 : 0));
+    return sizes;
+  }
+
+  // Ermittelt die Gruppengrößen für n Teilnehmende.
+  //
+  // Mit manualCount (vom Nutzer fest vorgegebene Gruppenanzahl) gilt die
+  // 3-6er-Empfehlung nicht mehr - einzige harte Grenze ist, dass keine Gruppe
+  // leer sein darf (1 <= manualCount <= n). Dadurch können bei einer ungünstig
+  // gewählten Anzahl auch kleinere oder größere Gruppen entstehen; das ist in
+  // diesem Fall gewollt, da der Nutzer die Anzahl bewusst festgelegt hat.
+  //
+  // Ohne manualCount (automatischer Modus, unverändert): 3-6 Personen pro
+  // Gruppe, bevorzugt 4-5. kMin/kMax ergeben sich direkt aus den Größenlimits:
+  // bei k Gruppen ist die größte mögliche Gruppengröße n/kMin=6 und die
+  // kleinste n/kMax=3, alles dazwischen bleibt automatisch gültig. Bevorzugt
+  // wird die kleinste Gruppenzahl, deren Größen größtenteils im 4-5er-Bereich
+  // bleiben (höchstens eine Gruppe mit 3 oder 6 wird toleriert, bevor eine
+  // weitere Gruppe gebildet wird).
+  function computeGroupSizes(n, manualCount) {
+    if (manualCount) {
+      if (manualCount < 1 || manualCount > n) return null; // Gruppe(n) wären leer
+      return evenSplit(n, manualCount);
+    }
+
     var kMin = Math.ceil(n / 6);
     var kMax = Math.floor(n / 3);
     if (kMin > kMax) return null; // n zu klein (<3) für eine gültige Gruppe
 
-    // Prefer the smallest number of groups whose sizes stay mostly within the
-    // preferred 4-5 range, tolerating at most one group outside it (a single
-    // 3 or 6) before adding another group.
     var fallback = null;
     for (var k = kMin; k <= kMax; k++) {
-      var base = Math.floor(n / k);
-      var rem = n % k;
-      var sizes = [];
-      for (var i = 0; i < k; i++) sizes.push(base + (i < rem ? 1 : 0));
-
+      var sizes = evenSplit(n, k);
       var penalty = sizes.filter(function (s) { return s < 4 || s > 5; }).length;
       if (penalty <= 1) return sizes;
       if (!fallback || penalty < fallback.penalty) fallback = { sizes: sizes, penalty: penalty };
     }
     return fallback.sizes;
+  }
+
+  // Kurzer Hinweistext, welche Gruppenanzahl die automatische Einteilung für
+  // n Teilnehmende wählen würde - hilft beim Ausfüllen des optionalen Felds.
+  function describeAutoGroupRange(n) {
+    var kMin = Math.ceil(n / 6);
+    var kMax = Math.floor(n / 3);
+    if (kMin > kMax) return "";
+    var range = kMin === kMax ? String(kMin) : kMin + "–" + kMax;
+    return "Automatisch wählt die App " + range + " Gruppen · eigene Anzahl optional oben möglich.";
   }
 
   // ---------- Zufalls-Hilfsfunktionen ----------
@@ -234,9 +267,17 @@
   // interleavt (siehe interleaveByAttributes) und dann reihum ("Round-Robin")
   // auf die Gruppen verteilt. Das sorgt gleichzeitig für Durchmischung und
   // Zufälligkeit, ohne die beiden Kriterien getrennt behandeln zu müssen.
-  function assignGroups(participants) {
-    var sizes = computeGroupSizes(participants.length);
-    if (!sizes) throw new Error("Für " + participants.length + " Teilnehmende kann keine gültige Gruppengröße (3–6) gebildet werden.");
+  function assignGroups(participants, manualCount) {
+    var sizes = computeGroupSizes(participants.length, manualCount);
+    if (!sizes) {
+      if (manualCount) {
+        throw new Error(
+          "Bei " + participants.length + " Teilnehmenden sind höchstens " +
+          participants.length + " Gruppen möglich (mindestens 1 Person pro Gruppe)."
+        );
+      }
+      throw new Error("Für " + participants.length + " Teilnehmende kann keine gültige Gruppengröße (3–6) gebildet werden.");
+    }
 
     var groupCount = sizes.length;
     var groups = sizes.map(function () { return []; });
@@ -441,10 +482,23 @@
     els.qualitySize.className = "badge " + (quality.sizeValid ? "optimal" : "gut");
   }
 
+  // Liest das optionale Gruppenanzahl-Feld aus. Leeres Feld = automatischer
+  // Modus (null). Alles andere muss eine ganze Zahl >= 1 sein.
+  function parseManualGroupCount() {
+    var raw = els.groupCountInput.value.trim();
+    if (raw === "") return null;
+    var n = Number(raw);
+    if (!Number.isInteger(n) || n < 1) {
+      throw new Error("Bitte eine ganze Zahl ab 1 als Gruppenanzahl eingeben oder das Feld leer lassen.");
+    }
+    return n;
+  }
+
   function runAssignment() {
     clearError();
     try {
-      var groups = assignGroups(state.participants);
+      var manualCount = parseManualGroupCount();
+      var groups = assignGroups(state.participants, manualCount);
       state.groups = groups;
       renderGroups(groups);
       renderQuality(evaluateQuality(groups));

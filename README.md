@@ -9,6 +9,7 @@ Rein clientseitige Web-App zur zufälligen, aber fairen Gruppeneinteilung bei Te
 - Excel-Import (`.xlsx`) mit den Spalten `Name` und `Abteilung`
 - Erkennt Führungskräfte automatisch am Text "FK" im Namen (z. B. `Nina Faulstich FK`, `Max Mustermann (FK)`)
 - Bildet automatisch sinnvoll große Gruppen (3–6 Personen, bevorzugt 4–5)
+- Gruppenanzahl optional manuell festlegbar – dann entfällt die 3–6er-Empfehlung und es wird gleichmäßig auf genau diese Anzahl verteilt
 - Mischt Abteilungen und FKs bei jedem "Neu würfeln" zufällig neu
 - Zeigt eine Qualitätsbewertung der Verteilung an (Abteilungsmischung, FK-Verteilung, Gruppengrößen)
 - "Ergebnis kopieren" kopiert alle Gruppen formatiert in die Zwischenablage

@@ -160,6 +160,37 @@ html, body {
   margin: 6px 0 0;
 }
 
+.field-group {
+  margin-bottom: 8px;
+}
+
+.field-label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+
+.input-number {
+  width: 100%;
+  min-height: 48px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--text);
+  font-size: 1rem;
+  font-family: inherit;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.input-number:focus {
+  outline: none;
+  border-color: var(--primary);
+}
+
 .btn {
   display: inline-flex;
   align-items: center;
